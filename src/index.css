@@ -8,7 +8,9 @@ body {
   }
   
   .board-grid {
-      border: 2px solid #999;
+      border-width: 0px 2px 2px 0px;
+      border-color: #999999;
+      border-style: solid;  
   }
 
   .grid-row:after {
@@ -22,34 +24,42 @@ body {
   }
   
   .square.conflict {
-    background-color: #cc8888
+    background-color: #cc8888;
   }
 
   .square.selected {
-    background-color: #99ffee
+    background-color: #99ffee;
+  }
+
+  .square.grouped {
+    background-color: #f0efbc;
+  }
+
+  .square.cursor {
+    background-image: url('cursor.png');
   }
 
   .square {
     background: #ffffff;
-    border: 1px solid #999999;
+    border-width: 1px 0px 0px 1px;
+    border-color: #999999;
+    border-style: solid;  
     float: left;
     font-size: 24px;
     font-weight: bold;
-    line-height: 34px;
-    height: 34px;
-    margin-right: -1px;
-    margin-top: -1px;
+    line-height: 40px;
+    height: 40px;
     padding: 0;
     text-align: center;
-    width: 34px;
+    width: 40px;
   }
 
-  .box-col-start {
-    border-left: 2px solid #999999;
+  .square.box-left {
+    border-left-width: 2px;
   }
 
-  .box-row-start {
-    border-top: 2px solid #999999;
+  .square.box-top {
+    border-top-width: 3px;
   }
   
   .square:focus {
@@ -63,9 +73,23 @@ body {
   .game {
     display: flex;
     flex-direction: row;
+    position: absolute;
+    z-index: 100;
   }
   
   .game-info {
     margin-left: 20px;
+  }
+
+  .group-canvas {
+    width: 400px;
+    height: 400px;
+    position: absolute;
+    pointer-events: none;
+    z-index: 200;
+  }
+
+  .container {
+    position: relative;
   }
   
