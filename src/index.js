@@ -1,5 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
+import * as Utils from './utils';
+import Shape from './shape';
 import './index.css';
 
 class Square extends React.Component {
@@ -12,9 +14,10 @@ class Square extends React.Component {
     const square = this.props.square;
     
     let className = "square";
-    if (square.classNames.conflict) {
-      className += " conflict"
+    for (let addClassName in square.classNames) {
+      className += ' ' + addClassName;
     }
+
     if (this.props.isSelected) {
       className += " selected"
     }
@@ -38,7 +41,7 @@ class Square extends React.Component {
 
 }
 
-class Group extends React.Component {
+class GroupForm extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -89,15 +92,6 @@ class Group extends React.Component {
 
 class DrawGroups extends React.Component {
 
-  indexesToCoords(indexes) {
-    let coords = [];
-    indexes.sort((a, b) => a - b);
-    for (let index of indexes) {
-      coords.push({row: Math.floor(index/9), col: (index%9)});
-    }
-    return coords;
-  }
-
   componentDidMount() {
     window.addEventListener('resize', this._resizeHandler);
 
@@ -122,212 +116,26 @@ class DrawGroups extends React.Component {
     }
   }
 
-  calculateCoord(rowcol, corner) {
-    let x = (rowcol.col * 41) + 4;
-    x = x + Math.floor(rowcol.col/3) * 1;
-    if (corner.endsWith('right')) {
-      x = x + 37;
-    }
-    let y = (rowcol.row * 41) + 5;
-    y = y + Math.floor(rowcol.row/3) * 2;
-    if (corner.startsWith('bottom')) {
-      y = y + 37;
-    }
-    return {x: x, y: y};
-  }
-
-  findRowCol(rowcols, rowcolToFind) {
-    for (let rowcol of rowcols) {
-      if (rowcol.col === rowcolToFind.col && rowcol.row === rowcolToFind.row) {
-        return rowcol;
-      }
-    }
-    return null;
-  }
-
-  noRowCol(rowcols, rowcolToFind) {
-    return this.findRowCol(rowcols, rowcolToFind) === null;
-  }
-
-  moveRowCol(rowcol, direction) {
-    let row = rowcol.row;
-    let col = rowcol.col;
-    if  (direction === 'up') {
-      row = row - 1;
-    } else if (direction === 'down') {
-      row = row + 1;
-    } else if (direction === 'left') {
-      col = col - 1;
-    } else if (direction === 'right') {
-      col = col + 1;
-    }
-    return {
-      row: row,
-      col: col
-    };
-  }
-
-  findNextOnPerimiter(rowcols, current) {
-    let directions = {
-      right: {
-        previous: 'up',
-        next: 'down'
-      },
-      down: {
-        previous: 'right',
-        next: 'left'
-      },
-      left: {
-        previous: 'down',
-        next: 'up'
-      },
-      up: {
-        previous: 'left',
-        next: 'right'
-      }
-    }
-
-    // try in the previous direction.
-    let previousDirection = directions[current.direction].previous;
-    let nextRowcol = this.findRowCol(rowcols, this.moveRowCol(current.rowcol, previousDirection));
-    if (nextRowcol) {
-      if (nextRowcol.done === undefined) {
-        nextRowcol.done = [];
-      }  
-      if (!nextRowcol.done.includes(previousDirection)) {
-        nextRowcol.done.push(previousDirection);
-        return {
-          direction: previousDirection,
-          rowcol: nextRowcol
-        };
-      }
-    }
-
-    // try in current direction
-    nextRowcol = this.findRowCol(rowcols, this.moveRowCol(current.rowcol, current.direction));
-
-    if (nextRowcol) {
-      if (nextRowcol.done === undefined) {
-        nextRowcol.done = [];
-      }  
-      if (!nextRowcol.done.includes(current.direction)) {
-        nextRowcol.done.push(current.direction);
-        // a better option would be one in the previous direction if there is one.
-        let betterRowcol = this.findRowCol(rowcols, this.moveRowCol(nextRowcol, previousDirection));
-        if (betterRowcol) {
-          if (betterRowcol.done === undefined) {
-            betterRowcol.done = [];
-          }  
-          if (!betterRowcol.done.includes(previousDirection)) {
-            betterRowcol.done.push(previousDirection);
-            return {
-              direction: previousDirection,
-              rowcol: betterRowcol
-            };
-          }
-        }
-        return {
-          direction: current.direction,
-          rowcol: nextRowcol
-        };
-      }
-    }
-
-    // return self in next direction.
-
-    let nextDirection = directions[current.direction].next;
-    nextRowcol = current.rowcol;
-
-    if (nextRowcol.done === undefined) {
-      nextRowcol.done = [];
-    }  
-    if (!nextRowcol.done.includes(nextDirection)) {
-      nextRowcol.done.push(nextDirection);
-      return {
-        direction: nextDirection,
-        rowcol: nextRowcol
-      };
-    
-    }
-
-    // can't find a next
-    return null;
-
-  }
-
-  calculateGroupCoords(rowcols) {
-    let groupCoords = [];
-    let start = rowcols[0];
-    if (start.done === undefined) {
-      start.done = [];
-    }
-    start.done.push('right');
-    let nextOnPerimiter = {
-      direction: 'right',
-      rowcol: start
-    };
-    while (nextOnPerimiter) {
-      console.log(nextOnPerimiter.direction + ", " + nextOnPerimiter.rowcol.row + ", " + nextOnPerimiter.rowcol.col);
-      let rowcol = nextOnPerimiter.rowcol;
-      
-      // let noUp = this.noRowCol(rowcols, this.moveRowCol(rowcol,'up'));
-      // let noRight = this.noRowCol(rowcols, this.moveRowCol(rowcol,'right'));
-      // let noDown = this.noRowCol(rowcols, this.moveRowCol(rowcol,'down'));
-      // let noLeft = this.noRowCol(rowcols, this.moveRowCol(rowcol,'left'));
-      
-      if (nextOnPerimiter.direction === 'right') {
-        groupCoords.push(this.calculateCoord(rowcol, 'top-left'));
-        groupCoords.push(this.calculateCoord(rowcol, 'top-right'));
-      } 
-      if (nextOnPerimiter.direction === 'down') {
-        groupCoords.push(this.calculateCoord(rowcol, 'top-right'));
-        groupCoords.push(this.calculateCoord(rowcol, 'bottom-right'));
-      } 
-      if (nextOnPerimiter.direction === 'left') {
-        groupCoords.push(this.calculateCoord(rowcol, 'bottom-right'));
-        groupCoords.push(this.calculateCoord(rowcol, 'bottom-left'));
-      } 
-      if (nextOnPerimiter.direction === 'up') {
-        groupCoords.push(this.calculateCoord(rowcol, 'bottom-left'));
-        groupCoords.push(this.calculateCoord(rowcol, 'top-left'));
-      } 
-      // if (noRight || noUp) {
-      //   groupCoords.push(this.calculateCoord(rowcol, 'top-right'));
-      // } 
-
-      // TODO work out how to walk the perimiter.
-
-      // if (noRight || noDown) {
-      //   groupCoords.push(this.calculateCoord(rowcol, 'bottom-right'));
-      // } 
-      // if (noLeft || noDown) {
-      //   groupCoords.push(this.calculateCoord(rowcol, 'bottom-left'));
-      // } 
-      nextOnPerimiter = rowcol = this.findNextOnPerimiter(rowcols, nextOnPerimiter);
-    }
-    // go back to the start.
-    groupCoords.push(this.calculateCoord(start, 'top-left'));
-    return groupCoords;
-  }
-
   draw(ctx) {
     console.log('draw it');
     console.log(this.props.groups);
     const totals = this.props.groups.totals;
     for(let groupTotal of totals) {
-      let rowcols = this.indexesToCoords(groupTotal.indexes);
-      let groupCoords = this.calculateGroupCoords(rowcols);
+      let shape = new Shape(Utils.indexesToCoords(groupTotal.indexes));
+      let perimiter = shape.calculatePerimiter();
 
       ctx.beginPath();
-      let start = groupCoords[0];
+      let start = perimiter[0];
       ctx.moveTo(start.x, start.y);
-      for (let i = 1; i < groupCoords.length; i++) {
-        let nextPoint = groupCoords[i];
+      for (let i = 1; i < perimiter.length; i++) {
+        let nextPoint = perimiter[i];
         ctx.lineTo(nextPoint.x, nextPoint.y);
       }
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#ffcc88';
       ctx.stroke();
+
+      ctx.fillText(groupTotal.total, start.x, start.y+8);
     }
     
   }
@@ -482,16 +290,12 @@ class Game extends React.Component {
     this.addSelectedCell(row, col);
   }
 
-  coordToIndex(coord) {
-    return (coord.row * this.gridSize) + coord.col;
-  }
-
   setSelectedSquareValue(key) {
     if (!this.state.cursor || ("123456789".indexOf(key) < 0 && key !== '')) {
       return;
     }
 
-    const i = this.coordToIndex(this.state.cursor);
+    const i = Utils.coordToIndex(this.state.cursor, this.gridSize);
     const history = [...this.state.history];
     const current = history[history.length - 1];
     const squares = [...current.squares];
@@ -544,7 +348,7 @@ class Game extends React.Component {
 
   addSelectedCell(row, col) {
     this.setCursor(row, col);
-    const index = this.coordToIndex({row: row, col: col});
+    const index = Utils.coordToIndex({row: row, col: col});
     let selected = [...this.state.selected];
     const aleadySelected = selected.indexOf(index);
     if (aleadySelected >= 0) {
@@ -580,9 +384,12 @@ class Game extends React.Component {
     //   return;
     // }
     for (let i of indexes) {
+      // should really clone the classNames
+      let newClassNames = squares[i].classNames;
+      newClassNames[newClass] = true;
       squares[i] = {
         value: squares[i].value,
-        classNames: [newClass].concat(squares[i].classNames)
+        classNames: newClassNames
       };
     }
     
@@ -664,7 +471,7 @@ class Game extends React.Component {
             <div>{status}</div>
             <ol>{moves}</ol>
             <div>button to allow start position to be saved</div>
-            <Group
+            <GroupForm
               saveTotal={this.saveTotal}
               selected={this.state.selected}
             />
@@ -702,7 +509,8 @@ class Game extends React.Component {
           has[value].push(pos);
         }
       });
-      for (let positions of has) {
+      for (let value in has) {
+        let positions = has[value];
         if (positions.length >= 2) {
           positions.forEach((pos) => {
             conflicts[pos] = true;
@@ -727,8 +535,12 @@ class Game extends React.Component {
     checkForLayoutConflicts(gridLayout.cols, squares, conflicts)
     checkForLayoutConflicts(gridLayout.boxes, squares, conflicts)
     
+    
     for (let pos = 0; pos < squares.length; pos++) {
-      squares[pos].classNames.conflict = conflicts[pos];
+      if (conflicts[pos]) {
+        console.log(squares[pos].classNames);
+        squares[pos].classNames.conflict = true;
+      }
     };
 
   }
