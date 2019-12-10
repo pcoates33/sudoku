@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import * as Utils from './utils';
 import Shape from './shape';
 import './index.css';
+import GameLayout from './gameLayout';
 
 class Square extends React.Component {
   constructor(props) {
@@ -14,10 +15,10 @@ class Square extends React.Component {
     const square = this.props.square;
     
     let className = "square";
-    for (let addClassName in square.classNames) {
+    for (let addClassName of square.classNames) {
       className += ' ' + addClassName;
     }
-
+    
     if (this.props.isSelected) {
       className += " selected"
     }
@@ -131,10 +132,13 @@ class DrawGroups extends React.Component {
         let nextPoint = perimiter[i];
         ctx.lineTo(nextPoint.x, nextPoint.y);
       }
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#ffcc88';
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#444422';
+      ctx.setLineDash([2,3]);
       ctx.stroke();
 
+      ctx.setLineDash([]);
+      ctx.clearRect(start.x-1, start.y-1, 14, 11);
       ctx.fillText(groupTotal.total, start.x, start.y+8);
     }
     
@@ -204,47 +208,13 @@ class Game extends React.Component {
     this.boxSize = (this.props.boxSize) ? parseInt(this.props.boxSize, 10) : 3;
     this.numBoxes = (this.props.numBoxes) ? parseInt(this.props.numBoxes, 10) : 3;
     this.gridSize = this.boxSize * this.numBoxes;
-    this.gridLayout = {
-      rows: [],
-      cols: [],
-      boxes: []
-    };
-    // The rows
-    for (let row = 0; row < this.gridSize; row++) {
-      let rowLayout = [];
-      for (let col = 0; col < this.gridSize; col++) {
-        rowLayout.push((row*this.gridSize)+col);
-      }
-      this.gridLayout.rows.push(rowLayout);
-    }
-    // The columns
-    for (let col = 0; col < this.gridSize; col++) {
-      let colLayout = [];
-      for (let row = 0; row < this.gridSize; row++) {
-        colLayout.push((row*this.gridSize)+col);
-      }
-      this.gridLayout.cols.push(colLayout);
-    }
-    // The boxes
-    for (let x = 0; x < this.numBoxes; x++) {
-      for (let y = 0; y < this.numBoxes; y++) {
-        let boxLayout = [];
-        for (let row = 0; row < this.boxSize; row++) {
-          for (let col = 0; col < this.boxSize; col++) {
-            let pos = (x * this.gridSize * this.boxSize) + (y * this.boxSize) + (row * this.gridSize) + col;
-            boxLayout.push(pos);
-          }  
-        }
-        this.gridLayout.boxes.push(boxLayout);  
-      }  
-    }
+    this.gameLayout = new GameLayout(this.gridSize);
     
-
     //
     const number_squares=this.gridSize*this.gridSize;
     let squares = [];
     while (squares.length < number_squares) {
-      squares.push({value: '', classNames: {}});
+      squares.push({value: '', classNames: []});
     }
     this.state = {
       history: [{
@@ -255,10 +225,12 @@ class Game extends React.Component {
       groups: {
         used: [],
         totals: []
-      }
+      },
+      mode: 'play'
     };
 
-    this.handleCellClick = this.handleCellClick.bind(this);
+    this.handleCellClickDuringSetup = this.handleCellClickDuringSetup.bind(this);
+    this.handleCellClickDuringPlay = this.handleCellClickDuringPlay.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.saveTotal = this.saveTotal.bind(this);
     
@@ -287,7 +259,12 @@ class Game extends React.Component {
         break;
     }
 
-    this.addSelectedCell(row, col);
+    if (this.state.mode === 'play') {
+      this.setCursor(row, col);
+    }
+    else {
+      this.toggleCellSelection(row, col);
+    }
   }
 
   setSelectedSquareValue(key) {
@@ -308,7 +285,9 @@ class Game extends React.Component {
       classNames: squares[i].classNames
     };
     
-    checkForConflicts(this.gridLayout, squares);
+    let conflicts = this.gameLayout.checkForConflicts(squares);
+    this.clearClassName(squares, 'conflict')
+    this.addClassName(squares, conflicts, 'conflict');
 
     this.setState({
       history: history.concat([{
@@ -337,7 +316,6 @@ class Game extends React.Component {
   }
 
   setCursor(row, col) {
-    console.log('set cursor ' + row + ',' + col);
     this.setState({
       cursor: {
         row: row,
@@ -346,8 +324,8 @@ class Game extends React.Component {
     });
   }
 
-  addSelectedCell(row, col) {
-    this.setCursor(row, col);
+  toggleCellSelection(row, col) {
+    
     const index = Utils.coordToIndex({row: row, col: col});
     let selected = [...this.state.selected];
     const aleadySelected = selected.indexOf(index);
@@ -357,18 +335,17 @@ class Game extends React.Component {
     else {
       selected.push(index);
     }
-    console.log(selected);
     this.setState({
       selected: selected
     });
   }
 
-  handleCellClick(row, col, e) {
-    console.log(row + ", " + col);
-    // todo want a flag to indicate if we can select multiple
-    // assume we can for now
-    console.log(e.target);
-    this.addSelectedCell(row, col);
+  handleCellClickDuringSetup(row, col, e) {
+    this.toggleCellSelection(row, col);
+  }
+
+  handleCellClickDuringPlay(row, col, e) {
+    this.setCursor(row, col);
   }
 
   contiguous(indexes) {
@@ -376,22 +353,31 @@ class Game extends React.Component {
     return true;
   }
 
-  markSquares(indexes, newClass) {
+  clearClassName(squares, className) {
+    for (let square of squares) {
+      const classIndex = square.classNames.indexOf(className);
+      if (classIndex >= 0) {
+        square.classNames.splice(classIndex, 1)
+      }
+    }
+  }
+
+  addClassName(squares, indexes, newClass) {
+    for (let i of indexes) {
+      if (!squares[i].classNames.includes(newClass)) {
+        squares[i].classNames.push(newClass);
+      }
+    }
+  }
+
+  markSquaresAndSetState(indexes, newClass) {
     const history = [...this.state.history];
     const current = history[history.length - 1];
     const squares = [...current.squares];
     // if (calculateWinner(squares) || squares[i]) {
     //   return;
     // }
-    for (let i of indexes) {
-      // should really clone the classNames
-      let newClassNames = squares[i].classNames;
-      newClassNames[newClass] = true;
-      squares[i] = {
-        value: squares[i].value,
-        classNames: newClassNames
-      };
-    }
+    this.addClassName(squares, indexes, newClass);
     
     this.setState({
       history: history.concat([{
@@ -405,11 +391,12 @@ class Game extends React.Component {
     console.log('save ' + total + ' for ' + indexes);
 
     if (!this.contiguous(indexes)) {
+      // TODO show error
       return;
     }
 
     // mark all squares as grouped
-    this.markSquares(indexes, 'grouped');
+    this.markSquaresAndSetState(indexes, 'grouped');
 
     let used = [...this.state.groups.used].concat(indexes);
     let totals = [...this.state.groups.totals];
@@ -424,7 +411,6 @@ class Game extends React.Component {
       },
       selected: []
     });
-    console.log(this.state.groups);
   }
 
   jumpTo(step) {
@@ -449,6 +435,7 @@ class Game extends React.Component {
     //     </li>
     //   );
     // });
+    const handleClick = (this.state.mode === 'play') ? this.handleCellClickDuringPlay : this.handleCellClickDuringSetup;
 
     let status = '/* TODO */';
     console.log('gridSize in Game is ' + this.gridSize);
@@ -463,7 +450,7 @@ class Game extends React.Component {
               squares={current.squares}
               selected={this.state.selected}
               cursor={this.state.cursor}
-              onClick={this.handleCellClick}
+              onClick={handleClick}
               gridSize={this.gridSize}
             />
           </div>
@@ -484,6 +471,51 @@ class Game extends React.Component {
   componentDidMount() {
     window.onkeydown = this.handleKeyDown;
     window.focus();
+    // load a game
+    this.setState({
+      groups: {
+        used: [],
+        totals: [
+          {total: 13, indexes:[0,1]},
+          {total: 8, indexes:[2,3]},
+          {total: 12, indexes:[4,5,14,15]},
+          {total: 17, indexes:[6,7]},
+          {total: 7, indexes:[8,17]},
+          {total: 7, indexes:[9,10]},
+          {total: 17, indexes:[11,12]},
+          {total: 12, indexes:[13,22]},
+          {total: 5, indexes:[16,25]},
+          {total: 3, indexes:[18,19]},
+          {total: 15, indexes:[20,21]},
+          {total: 15, indexes:[23,24]},
+          {total: 20, indexes:[26,34,35]},
+          {total: 8, indexes:[27,28]},
+          {total: 3, indexes:[29,30]},
+          {total: 8, indexes:[31,40]},
+          {total: 12, indexes:[32,33]},
+          {total: 16, indexes:[36,37]},
+          {total: 14, indexes:[38,39]},
+          {total: 8, indexes:[41,50]},
+          {total: 10, indexes:[42,51]},
+          {total: 4, indexes:[43,44]},
+          {total: 23, indexes:[45,54,63,64]},
+          {total: 14, indexes:[46,55]},
+          {total: 11, indexes:[47,56]},
+          {total: 16, indexes:[48,49]},
+          {total: 7, indexes:[52,53]},
+          {total: 6, indexes:[57,66]},
+          {total: 4, indexes:[58,67]},
+          {total: 16, indexes:[59,68]},
+          {total: 3, indexes:[60,69]},
+          {total: 9, indexes:[61,62]},
+          {total: 9, indexes:[65,74,75]},
+          {total: 13, indexes:[70,79]},
+          {total: 17, indexes:[71,80]},
+          {total: 6, indexes:[72,73]},
+          {total: 17, indexes:[76,77,78]}
+        ]
+      }
+    });
   }
 }
   
@@ -497,70 +529,3 @@ class Game extends React.Component {
     document.getElementById('root')
   );
   
-  function checkForLayoutConflicts(layouts, squares, conflicts) {
-    layouts.forEach((layout) => {
-      let has = {};
-      layout.forEach((pos) => {
-        let value = squares[pos].value;
-        if (value !== '') {
-          if (!has[value]) {
-            has[value] = [];
-          }
-          has[value].push(pos);
-        }
-      });
-      for (let value in has) {
-        let positions = has[value];
-        if (positions.length >= 2) {
-          positions.forEach((pos) => {
-            conflicts[pos] = true;
-          });
-        }
-      };
-    });
-    
-  }
-
-  function checkForConflicts(gridLayout, squares) {
-
-    let conflicts = [];
-    while (conflicts.length < squares.length) {
-      conflicts.push(false);
-    }
-
-    //checkForRowConflicts(squares, conflicts);
-    //checkForColumnConflicts(squares, conflicts)
-    //checkForBoxConflicts(squares, conflicts)
-    checkForLayoutConflicts(gridLayout.rows, squares, conflicts)
-    checkForLayoutConflicts(gridLayout.cols, squares, conflicts)
-    checkForLayoutConflicts(gridLayout.boxes, squares, conflicts)
-    
-    
-    for (let pos = 0; pos < squares.length; pos++) {
-      if (conflicts[pos]) {
-        console.log(squares[pos].classNames);
-        squares[pos].classNames.conflict = true;
-      }
-    };
-
-  }
-
-  // function calculateWinner(squares) {
-  //   const lines = [
-  //     [0, 1, 2],
-  //     [3, 4, 5],
-  //     [6, 7, 8],
-  //     [0, 3, 6],
-  //     [1, 4, 7],
-  //     [2, 5, 8],
-  //     [0, 4, 8],
-  //     [2, 4, 6],
-  //   ];
-  //   for (let i = 0; i < lines.length; i++) {
-  //     const [a, b, c] = lines[i];
-  //     if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-  //       return squares[a];
-  //     }
-  //   }
-  //   return null;
-  // }
