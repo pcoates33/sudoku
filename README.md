@@ -1,3 +1,10 @@
+Investigation into react and npm. A bit hacky, but it will play a game of killer sudoko.
+
+There is only one game loaded into it. I might add more, or let them be created later.
+
+To play  in dev mode, run 'npm start' in the project directory.
+
+
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts

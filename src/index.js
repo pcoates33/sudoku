@@ -42,55 +42,8 @@ class Square extends React.Component {
 
 }
 
-class GroupForm extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      total: 0
-    };
 
-    this.handleSubmit = this.handleSubmit.bind(this);
-    this.handleChange = this.handleChange.bind(this);
-    this.handleKeyDown = this.handleKeyDown.bind(this);
-  }
-
-  handleKeyDown(event) {
-    event.stopPropagation();
-  }
-
-  handleSubmit(event) {
-    this.props.saveTotal(this.state.total, this.props.selected);
-
-    event.preventDefault();
-  }
-
-  handleChange(event) {
-    const target = event.target;
-    const value = target.type === 'checkbox' ? target.checked : target.type === 'number' ? parseInt( target.value,10) : target.value;
-    const name = target.name;
-
-    this.setState({
-      [name]: value
-    });
-  }
-
-  render() {
-    const opts = {};
-    console.log(this.props.selected);
-    if (this.props.selected.length === 0) {
-      opts['disabled'] = 'disabled';
-    };
-    
-    return (
-      <form onSubmit={this.handleSubmit} onKeyDown={this.handleKeyDown}>
-          <div className="form-row"><label>total : </label><input type="number" name="total" className="required" value={this.state.total} onChange={this.handleChange}/></div>
-          <div className="form-row"><button type="submit" {...opts}>Save</button></div>
-      </form>
-    );
-  }
-
-}
-
+// draw dotted lines around the groups and add the total to the top left square
 class DrawGroups extends React.Component {
 
   componentDidMount() {
@@ -289,11 +242,16 @@ class Game extends React.Component {
     this.clearClassName(squares, 'conflict')
     this.addClassName(squares, conflicts, 'conflict');
 
+    let badtotals = this.gameLayout.checkForBadTotals(squares, this.state.groups);
+    this.clearClassName(squares, 'badtotal')
+    this.addClassName(squares, badtotals.indexes, 'badtotal');
+
     this.setState({
       history: history.concat([{
         squares: squares,
       }]),
-      stepNumber: history.length
+      stepNumber: history.length,
+      badTotalCount: badtotals.count
     });
   }
 
@@ -316,12 +274,21 @@ class Game extends React.Component {
   }
 
   setCursor(row, col) {
+    const history = [...this.state.history];
+    const current = history[history.length - 1];
+    const squares = [...current.squares];    
+    let selectedGroupIndexes = this.gameLayout.findSelectedGroup(this.state.groups, 
+      Utils.coordToIndex({row: row, col: col}));
+    this.clearClassName(squares, 'selected-group')
+    this.addClassName(squares, selectedGroupIndexes, 'selected-group');
+
     this.setState({
       cursor: {
         row: row,
         col: col
       }
     });
+
   }
 
   toggleCellSelection(row, col) {
@@ -363,6 +330,9 @@ class Game extends React.Component {
   }
 
   addClassName(squares, indexes, newClass) {
+    console.log(squares);
+    console.log(indexes);
+    console.log(newClass);
     for (let i of indexes) {
       if (!squares[i].classNames.includes(newClass)) {
         squares[i].classNames.push(newClass);
@@ -413,6 +383,45 @@ class Game extends React.Component {
     });
   }
 
+  calculateStatus(squares, numberSquares, groups) {
+    let squaresFilled = 0;
+    let conflictCount = 0;
+    for (let square of squares) {
+      if (square.value) {
+        squaresFilled++;
+      }
+      if (square.classNames.includes('conflict')) {
+        conflictCount++;
+      }
+    }
+    let badTotalCount =  this.state.badTotalCount;
+    let adjustedSquaresComplete = squaresFilled;
+    var status = '';
+    
+    
+    if (conflictCount > 0) {
+      adjustedSquaresComplete -= Math.round(conflictCount / 2);
+      status += '<div class="status square-conflicts">'+conflictCount+' squares conflicted</div>';
+    }
+
+    if (badTotalCount > 0) {
+      adjustedSquaresComplete -= badTotalCount;
+      status += '<div class="status bad-totals">'+badTotalCount+' groups have the wrong total</div>';
+    }
+
+    if (squaresFilled === numberSquares 
+      && conflictCount === 0 
+      && badTotalCount === 0) {
+      status += '<div class="status winner">Well done, you have completed the puzzle.</div>';
+    }
+
+    const percentComplete = Math.round(Math.max(0, adjustedSquaresComplete) * 100 / numberSquares);
+    status = percentComplete+'% complete' + status;
+
+    return status;
+  }
+
+
   jumpTo(step) {
     this.setState({
       stepNumber: step
@@ -424,20 +433,10 @@ class Game extends React.Component {
     const current = history[this.state.stepNumber];
     // const winner = calculateWinner(current.squares);
 
-    let moves = '/* TODO */';
-    // const moves = history.map((step, move) => {
-    //   const desc = (move > 0) ?
-    //     'Go to move #' + move :
-    //     'Go to game start';
-    //   return (
-    //     <li key={move}>
-    //       <button onClick={() => this.jumpTo(move)}>{desc}</button>
-    //     </li>
-    //   );
-    // });
     const handleClick = (this.state.mode === 'play') ? this.handleCellClickDuringPlay : this.handleCellClickDuringSetup;
 
-    let status = '/* TODO */';
+    let status = this.calculateStatus(current.squares, this.gridSize*this.gridSize, this.state.groups);
+
     console.log('gridSize in Game is ' + this.gridSize);
     return (
       <div className="container">
@@ -454,14 +453,7 @@ class Game extends React.Component {
               gridSize={this.gridSize}
             />
           </div>
-          <div className="game-info">
-            <div>{status}</div>
-            <ol>{moves}</ol>
-            <div>button to allow start position to be saved</div>
-            <GroupForm
-              saveTotal={this.saveTotal}
-              selected={this.state.selected}
-            />
+          <div className="game-info" dangerouslySetInnerHTML={{__html: status}}>
           </div>
         </div>
       </div>
@@ -471,7 +463,7 @@ class Game extends React.Component {
   componentDidMount() {
     window.onkeydown = this.handleKeyDown;
     window.focus();
-    // load a game
+    // load a game - hard code one initially
     this.setState({
       groups: {
         used: [],

@@ -27,8 +27,20 @@ body {
     background-color: #cc8888;
   }
 
+  .square.badtotal {
+    background-color: #ccc088;
+  }
+
+  .square.conflict.badtotal {
+    background-color: #ccaf88;
+  }
+
   .square.selected {
     background-color: #99ffee;
+  }
+
+  .square.selected-group {
+    background-color: #e9e9e9;
   }
 
   .square.grouped {

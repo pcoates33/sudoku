@@ -74,4 +74,43 @@ export default class GameLayout {
       return conflicts;
     }
 
+    checkForBadTotals(squares, groups) {
+
+      let badTotals = { indexes: [], count: 0};
+
+      groups.totals.forEach((total) => {
+        let sumValues = 0;
+        let groupComplete = true;
+        for (let index of total.indexes) {
+          // see if it has a value.
+          if (squares[index].value === '') {
+            groupComplete = false;
+          } else {
+            sumValues += parseInt(squares[index].value, 10);
+          }
+        }
+        if (groupComplete && total.total !== sumValues) {
+          badTotals.count++;
+          badTotals.indexes = badTotals.indexes.concat(total.indexes);
+        }
+      });
+     
+      return badTotals;
+    }
+
+    findSelectedGroup(groups, selectedIndex) {
+      let selectedGroup = [];
+
+      groups.totals.forEach((total) => {
+        for (let index of total.indexes) {
+          // see if it is the index we're looking for.
+          if (selectedIndex === index) {
+            selectedGroup = selectedGroup.concat(total.indexes);
+          }
+        }
+      });
+     
+      return selectedGroup;
+    }
+
 }
